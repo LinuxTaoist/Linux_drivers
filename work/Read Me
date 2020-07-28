@@ -1,0 +1,11 @@
+date        : 2020-07-28
+author      : Linux_Taoist
+description : 驱动文件：
+              实现在字符驱动上使用工作队列，其中有两种使用方法由DECLARE_WORK_SUPPORT宏控制。
+              使用时，还需在内核设备树中添加节点，compatibe值为 "jimi,work"。
+              
+              测试文件：
+              实现调用驱动write接口，从而触发驱动中工作队列的运行。
+              测试文件编译命令：arm-linux-gnueabihf-gcc -o work work_queue.c
+              将可执行测试文件，放入机器中。执行命令： ./work
+             
