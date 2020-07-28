@@ -1,0 +1,9 @@
+date        : 2020-07-28
+author      : Linux_Taoist
+description : 驱动文件：
+              在工作队列代码上增加定时器功能，测试定时器能否定时触发打印log。
+
+              测试文件：
+              测试文件编译命令：arm-linux-gnueabihf-gcc -o APP APP.c
+              将可执行测试文件，放入机器中。执行命令： ./APP
+             
