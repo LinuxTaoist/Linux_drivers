@@ -125,8 +125,8 @@ static int register_driver(void)
 static struct driver_case_platform_data  *driver_case_parse_dt(struct device *pdev)
 {
     struct driver_case_platform_data *pdata;
-    //struct device_node *np = pdev->of_node;
-
+    PRINT_INFO("Entry %s \n", __func__);
+    
     pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
     if (!pdata) {
         PRINT_ERR("could not allocate memory for platform data\n");
@@ -150,14 +150,12 @@ static int driver_case_probe(struct platform_device *pdev)
         pdata = driver_case_parse_dt(&pdev->dev);
         if(pdata) {
             pdev->dev.platform_data = pdata;
+        } else {
+            ret = -EINVAL;
+            PRINT_ERR("get platform_data NULL\n");
+            goto fail_to_get_platform_data;
         }
-    }    
-    if (!pdata) {
-        PRINT_ERR("get platform_data NULL\n");
-        ret = -EINVAL;
-        
-        goto fail_to_get_platform_data;
-    }    
+    }      
     
     pdriver_case->platform_data = pdata;
     
