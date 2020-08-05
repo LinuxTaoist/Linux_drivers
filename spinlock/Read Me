@@ -1,0 +1,4 @@
+version    : V1.0
+date       : 2020-08-05
+description: 
+             实现自旋锁的一个实例。
