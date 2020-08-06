@@ -111,7 +111,7 @@ ssize_t driver_case_read(struct file *file, char __user *buf, size_t size, loff_
     
     ret = copy_to_user(buf, test_buf, ARRAY_SIZE(test_buf));
     
-    printk("task: %s/%d: %s", driver_case.ptask->comm, driver_case.ptask->pid, test_buf);
+    PRINT_INFO("task: %s/%d: %s", driver_case.ptask->comm, driver_case.ptask->pid, test_buf);
     
     return 0;
 }
