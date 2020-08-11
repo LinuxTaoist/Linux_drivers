@@ -254,6 +254,11 @@ int ap3216c_remove(struct i2c_client *client)
     return 0;
 }
 
+static struct i2c_device_id  ap3216c_id[] = {
+	{"100ask,ap3216c", 0},
+	{}
+};
+
 const struct of_device_id ap3216c_table[] = {
 	{
 		.compatible = COMPATABLE_NAME,
@@ -270,6 +275,7 @@ static struct i2c_driver ap3216c_device_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = ap3216c_table,
   	},
+	.id_table = ap3216c_id,
 };
 
 
