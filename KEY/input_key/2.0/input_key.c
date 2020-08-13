@@ -40,7 +40,6 @@
 #define PLATFORM_NAME    "platform_input_key"
 #define COMPATABLE_NAME  "100ask,test"
 
-#define CONFIG_PM_SLEEP
 #define DEBUG_LOG_SUPPORT
 
 #define PRINT_ERR(format,x...)    \
@@ -58,132 +57,177 @@ do{ printk(KERN_INFO "[input_key] func: %s line: %d info: " format,    \
 #endif
 
 
-struct key_platform_data {
-    int gpionum;                              /* gpio标号 */
-    int irqnum;                               /* 中断号     */
-    unsigned int value;                       /* 按键对应的键值 */
+struct input_key_platform_data {
     char name[10];                            /* 名字 */
+    int  gpionum;                             /* gpio标号 */
+    int  irqnum;                              /* 中断号     */
+    unsigned int value;                       /* 按键对应的键值 */
 };
 
-struct key_dev{
+struct input_key_dev{
     int    count;
-    struct key_platform_data  *platform_data;
+    struct input_key_platform_data  *platform_data;
     struct device_node        *nd;
     struct input_dev          *inputdev;      /* input结构体 */
     irqreturn_t (*handler)(int, void *);      /* 中断服务函数 */
 };
 
-struct key_dev input_key_dev;
+struct input_key_dev input_key;
 
 static irqreturn_t gpio_key_handler(int irq, void *dev_id)
 {
     int key_val = -1;
-    struct key_dev *dev = (struct key_dev *)dev_id;
-    disable_irq_nosync(irq);
+    struct input_key_dev *dev = (struct input_key_dev *)dev_id;
     PRINT_INFO("Enter %s \n", __func__);
+    disable_irq_nosync(irq);
     
     key_val = dev->platform_data->value;
     input_report_key(dev->inputdev, dev->platform_data->value, 0);
     input_sync(dev->inputdev);
-    
+   
     enable_irq(irq);
     return IRQ_RETVAL(IRQ_HANDLED); 
 }
 
-static int input_key_probe(struct platform_device *pdev)
+static struct input_key_platform_data  *input_key_parse_dt(struct device *pdev)
 {
-    int ret = -1 ;
-    int i = 0;
-    PRINT_INFO("%s:%d: Entry %s \r\n", __FILE__, __LINE__, __func__);
+    int key_count = 0, i = 0;
+    struct device_node *node;
+    struct input_key_platform_data *pdata;
+    struct input_key_dev *pinput_key = &input_key;
+    
+    PRINT_INFO("Entry %s \n", __func__);
+    
+    node = pdev->of_node;
+    if (!node) {
+        PRINT_ERR("could not allocate memory for node\n");
+
+        return NULL;
+    }
+    
+    pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
+    if (!pdata) {
+        PRINT_ERR("could not allocate memory for platform data\n");
+
+        return NULL;
+    }
     
     /* 读取设备树  */
 #if 0
     /* 通过compatible值匹配设备节点 */
-    input_key_dev->nd = of_find_compatible_node();
+    node = of_find_compatible_node();
 #else
     /* 通过绝对路径查找设备节点 */
-    input_key_dev.nd = of_find_node_by_path("/input_key");
-    if (NULL == input_key_dev.nd ) {
-        PRINT_ERR("100ask_test node not find! \r\n");
+    node = of_find_node_by_path("/input_key");
+    if (NULL == node ) {
+        PRINT_ERR("100ask_test node not find! \n");
     } else {
-        PRINT_DEBUG("100ask_test node find! \r\n");
+        PRINT_DEBUG("100ask_test node find! \n");
     }
 #endif
     
-    input_key_dev.count = of_gpio_count(input_key_dev.nd);
-    if (0 == input_key_dev.count) {
-        PRINT_ERR("gpio count not find! \r\n");
+    key_count = of_gpio_count(node);
+    if (0 == key_count) {
+        PRINT_ERR("gpio count not find! \n");
     } else {
-        PRINT_DEBUG("gpio count is %d \r\n", input_key_dev.count);
+        PRINT_DEBUG("gpio count is %d \n", key_count);
     }
     
-    input_key_dev.platform_data = kzalloc(sizeof(input_key_dev.platform_data) 
-                                * input_key_dev.count, GFP_KERNEL);
-    for (i = 0; i < input_key_dev.count; i++) {
-        input_key_dev.platform_data[i].gpionum = 
-                      of_get_named_gpio(input_key_dev.nd, "gpios", i);
-        of_property_read_u32(input_key_dev.nd, "key_code", 
-                             &input_key_dev.platform_data[i].value);
-        if(input_key_dev.platform_data[i].gpionum < 0){
-            PRINT_ERR("Error: not get %d gpio_num! \r\n", i);
+    pdata = kzalloc(sizeof(*pdata) * key_count, GFP_KERNEL);
+    
+    for (i = 0; i < key_count; i++) {
+    
+        pdata[i].gpionum = of_get_named_gpio(node, "gpios", i);
+        if(pdata[i].gpionum < 0){
+            PRINT_ERR("Error: not get %d gpio_num! \n", i);
  
             /* 获取失败gpio序数和总数减1, 保证gpio序号连续 */
             --i;
-            --input_key_dev.count; 
+            --key_count; 
         } else {
-            PRINT_DEBUG("get %d:gpio_num: %d! \r\n", i, input_key_dev.platform_data[i].gpionum);        
+            PRINT_DEBUG("get %d: gpio_num: %d! \n", i, pdata[i].gpionum);        
+        }
+        
+        of_property_read_u32(node, "key_code", &pdata[i].value);
+    }
+    pinput_key->count = key_count;
+    
+    return pdata;
+}
+
+static int input_key_probe(struct platform_device *pdev)
+{
+    int ret = -1, i = 0;
+    struct input_key_platform_data *pdata = pdev->dev.platform_data;
+    struct input_key_dev *pinput_key = &input_key; 
+    PRINT_INFO(" Entry %s \n", __func__);
+    
+    if (!pdata) {
+        PRINT_ERR("could not allocate memory for platform data\n");
+        
+        pdata = input_key_parse_dt(&pdev->dev);
+        if(!pdata) {
+            ret = -EINVAL;
+            PRINT_ERR("get platform_data NULL\n");
+            
+            goto fail_to_get_platform_data;
         }
     }
     
-    for (i = 0; i < input_key_dev.count; i++) {
-        memset(input_key_dev.platform_data[i].name, 0, sizeof(input_key_dev.platform_data[i].name));
-        sprintf(input_key_dev.platform_data[i].name, "KEY%d", i);
-        gpio_request(input_key_dev.platform_data[i].gpionum, input_key_dev.platform_data[i].name);
-        input_key_dev.platform_data[i].irqnum = gpio_to_irq(input_key_dev.platform_data[i].gpionum);
-        input_key_dev.handler = gpio_key_handler;
+    pinput_key->platform_data = pdata;
+    
+    for (i = 0; i < input_key.count; i++) {
+        memset(input_key.platform_data[i].name, 0, sizeof(input_key.platform_data[i].name));
+        sprintf(input_key.platform_data[i].name, "KEY%d", i);
+        gpio_request(input_key.platform_data[i].gpionum, input_key.platform_data[i].name);
+        input_key.platform_data[i].irqnum = gpio_to_irq(input_key.platform_data[i].gpionum);
+        input_key.handler = gpio_key_handler;
     }
         
-    for (i = 0; i < input_key_dev.count; i++) {
-        ret = request_irq(input_key_dev.platform_data[i].irqnum, 
+    for (i = 0; i < input_key.count; i++) {
+        ret = request_irq(input_key.platform_data[i].irqnum, 
                           gpio_key_handler, 
                           IRQF_TRIGGER_FALLING|IRQF_TRIGGER_RISING, 
-                          input_key_dev.platform_data[i].name, 
-                          &input_key_dev);
+                          input_key.platform_data[i].name, 
+                          &input_key);
         if(ret < 0){
-            PRINT_ERR("irq %d request failed!\r\n", input_key_dev.platform_data[i].irqnum);
+            PRINT_ERR("irq %d request failed!\n", input_key.platform_data[i].irqnum);
             return ERROR;
         }
     }
     
-    input_key_dev.inputdev = input_allocate_device();
-    input_key_dev.inputdev->name = INPUT_KEY_NAME;
+    input_key.inputdev = input_allocate_device();
+    input_key.inputdev->name = INPUT_KEY_NAME;
     
     /* 初始化input_dev，设置产生哪些事件 */
-    __set_bit(EV_KEY, input_key_dev.inputdev->evbit);    /* 设置产生按键事件 */
-    __set_bit(EV_REP, input_key_dev.inputdev->evbit);    /* 重复事件，比如按下去不放开，就会一直输出信息 */
+    __set_bit(EV_KEY, input_key.inputdev->evbit);    /* 设置产生按键事件 */
+    __set_bit(EV_REP, input_key.inputdev->evbit);    /* 重复事件，比如按下去不放开，就会一直输出信息 */
 
     /* 初始化input_dev，设置产生哪些按键 */
-    __set_bit(KEY_0, input_key_dev.inputdev->keybit);    
+    __set_bit(KEY_0, input_key.inputdev->keybit);    
     
-    ret = input_register_device(input_key_dev.inputdev);
+    ret = input_register_device(input_key.inputdev);
     if (ret) {
-        PRINT_ERR("register input device failed!\r\n");
+        PRINT_ERR("register input device failed!\n");
         return ret;
     }
     
     return 0;
+    
+fail_to_get_platform_data:
+    return ret;
 }
 
 int input_key_remove(struct platform_device *pdev)
 {
     int i;
 
-    for (i = 0; i < input_key_dev.count; i++) {
-        free_irq(input_key_dev.platform_data[i].irqnum, &input_key_dev);
+    for (i = 0; i < input_key.count; i++) {
+        free_irq(input_key.platform_data[i].irqnum, &input_key);
     }
 
-    input_unregister_device(input_key_dev.inputdev);
-    input_free_device(input_key_dev.inputdev);
+    input_unregister_device(input_key.inputdev);
+    input_free_device(input_key.inputdev);
 
     return 0;
 }
@@ -196,48 +240,45 @@ const struct of_device_id input_key_table[] = {
     },
 };
 
-#ifdef CONFIG_PM_SLEEP
-static int key_dev_suspend(struct device *dev)
+static int input_key_dev_suspend(struct device *dev)
 {
     int i = 0;
 
-    for (i = 0; i < input_key_dev.count; i++) {
-        enable_irq_wake(input_key_dev.platform_data[i].irqnum);
+    for (i = 0; i < input_key.count; i++) {
+        enable_irq_wake(input_key.platform_data[i].irqnum);
     }
 
     return 0;
 }
 
-static int key_dev_resume(struct device *dev)
+static int input_key_dev_resume(struct device *dev)
 {
     int i = 0;
     
-    for (i = 0; i < input_key_dev.count; i++) {
-        disable_irq_wake(input_key_dev.platform_data[i].irqnum);
+    for (i = 0; i < input_key.count; i++) {
+        disable_irq_wake(input_key.platform_data[i].irqnum);
     }
     
     return 0;
 }
-#endif
 
-static SIMPLE_DEV_PM_OPS(key_dev_pm_ops, key_dev_suspend, key_dev_resume);
-
+static SIMPLE_DEV_PM_OPS(input_key_dev_pm_ops, input_key_dev_suspend, input_key_dev_resume);
 
 static struct platform_driver input_key_device_driver = {
     .probe  = input_key_probe,
     .remove = input_key_remove,
     .driver = {
-        .name = PLATFORM_NAME,
+        .name  = PLATFORM_NAME,
         .owner = THIS_MODULE,
+        .pm    = &input_key_dev_pm_ops,
         .of_match_table = input_key_table,
-        .pm    = &key_dev_pm_ops,
       },
 };
 
 
 static int __init input_key_init(void)
 {
-    PRINT_INFO("%s:%d: Entry %s \r\n", __FILE__, __LINE__, __func__);
+    PRINT_INFO("%s:%d: Entry %s \n", __FILE__, __LINE__, __func__);
     
     platform_driver_register(&input_key_device_driver);
     
@@ -246,7 +287,7 @@ static int __init input_key_init(void)
 
 static void __exit input_key_exit(void)
 {
-    PRINT_INFO("%s:%d: Entry %s \r\n", __FILE__, __LINE__, __func__);
+    PRINT_INFO("%s:%d: Entry %s \n", __FILE__, __LINE__, __func__);
     
     platform_driver_unregister(&input_key_device_driver);
 }
