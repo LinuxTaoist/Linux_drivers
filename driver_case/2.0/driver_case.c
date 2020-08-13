@@ -85,6 +85,7 @@ static struct file_operations driver_case_fops = {
 static int register_driver(void)
 {
     PRINT_INFO("Entry %s \n", __func__);
+    
     /* 1. 设置设备号 
      * 主设备号已知， 静态注册；未知， 动态注册。
      */
@@ -110,7 +111,7 @@ static int register_driver(void)
         return ERROR;
     }
     
-     /* 4.创建设备 */
+    /* 4.创建设备 */
     driver_case.device = device_create(driver_case.class, NULL, 
                                     driver_case.devid, NULL, DRIVER_CASE_DEVICE_NAME);
     if(NULL == driver_case.device) {   
@@ -121,7 +122,6 @@ static int register_driver(void)
     return OK;
 }
 
-#ifdef CONFIG_OF
 static struct driver_case_platform_data  *driver_case_parse_dt(struct device *pdev)
 {
     struct driver_case_platform_data *pdata;
@@ -136,7 +136,6 @@ static struct driver_case_platform_data  *driver_case_parse_dt(struct device *pd
 
     return pdata;
 }
-#endif
 
 static int driver_case_probe(struct platform_device *pdev)
 {
