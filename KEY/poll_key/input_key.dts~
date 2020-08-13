@@ -1,0 +1,36 @@
+input_key {
+    #address-cells = <1>;
+    #size-cells = <1>;
+    compatible = "fsl,input_key";
+
+	key_headset {
+		label = "headset Key";
+		key_code = <64>;
+		gpios = <&gpio1 16 1>;
+		gpio-key,wakeup;
+	};
+    
+    status = "okay";
+};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "sprd-gpio-keys";
+		status = "ok";
+
+		key_power {
+			label = "Power Key";
+			linux,code = <116>;
+			gpios = <&pmic_eic 1 1>;
+			debounce-interval = <5>;
+			gpio-key,wakeup;
+			gpio-key,level-trigger;
+		};
+
+		key_headset {
+			label = "headset Key";
+			linux,code = <64>;
+			gpios = <&ap_gpio 78 1>;
+			gpio-key,wakeup;
+		};
+    }
