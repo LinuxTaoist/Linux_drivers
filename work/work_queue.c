@@ -34,16 +34,34 @@
 
 //#define DECLARE_WORK_SUPPORT 
 
+#define DEBUG_LOG_SUPPORT
+
+#define PRINT_ERR(format,x...)    \
+do{ printk(KERN_ERR "ERROR: func: %s line: %04d info: " format,          \
+                                 __func__, __LINE__, ## x); }while(0)
+#define PRINT_INFO(format,x...)   \
+do{ printk(KERN_INFO "[driver_case]" format, ## x); }while(0)
+
+#ifdef DEBUG_LOG_SUPPORT
+#define PRINT_DEBUG(format,x...)  \
+do{ printk(KERN_INFO "[driver_case] func: %s line: %d info: " format,    \
+                                 __func__, __LINE__, ## x); }while(0)
+#else
+#define PRINT_DEBUG(format,x...)
+#endif
+
 struct work_platform_data {
-    int    major;
+
     int    gpio_num;
+
+};
+
+struct  work_dev {
+    int    major;
     dev_t  devid;
     struct cdev cdev;
     struct class *class;
     struct device *device;
-};
-
-struct  work_dev {
     struct work_platform_data *platform_data;
 };
 
@@ -62,7 +80,7 @@ static struct work_struct test1_item;
 
 void test1_callback(struct work_struct *work) 
 {
-    printk("test1_callback!");
+    PRINT_INFO("test1_callback!");
 }
 
 
@@ -74,7 +92,7 @@ static int work_open(struct inode *inode, struct file *filp)
 static ssize_t work_write(struct file *file, const char __user *buf, 
                              size_t size, loff_t *offset)
 {
-    printk("dx_test: work_write");
+    PRINT_DEBUG("dx_test: work_write");
     queue_work(test1_workqueue, &test1_item);
     return 0;
 }
@@ -88,46 +106,44 @@ static struct file_operations work_fops = {
 
 static int register_driver(void)
 {
-    printk("%s:%d: Entry %s \r\n", __FILE__, __LINE__, __func__);
+    PRINT_INFO("Entry %s \n", __func__);
     /* 1. 设置设备号 
      * 主设备号已知， 静态注册；未知， 动态注册。
      */
 #ifdef DEV_MAJOR    
-        printk("%s:%d -----------DEV_MAJOR------------", __func__, __LINE__);
-        work.platform_data->devid = MKDEV(DEV_MAJOR, 0);
-        register_chrdev_region(work.platform_data->devid, WORK_NUM, WORK_NAME);
-        printk("%s:%d DEV_MAJOR", __func__, __LINE__);
+    PRINT_INFO("%s -----------DEV_MAJOR------------", __func__);
+    work.devid = MKDEV(DEV_MAJOR, 0);
+    register_chrdev_region(work.devid, WORK_NUM, WORK_NAME);
+    PRINT_INFO("%s:%d DEV_MAJOR", __func__, __LINE__);
 #else    
-        alloc_chrdev_region(&work.platform_data->devid, 0, WORK_NUM, WORK_NAME);
-        work.platform_data->major = MAJOR(work.platform_data->devid);    
+    alloc_chrdev_region(&work.devid, 0, WORK_NUM, WORK_NAME);
+    work.major = MAJOR(work.devid);    
 #endif
 
     /* 2. 注册驱动结构体 */
-    work.platform_data->cdev.owner = THIS_MODULE;
-    cdev_init(&work.platform_data->cdev, &work_fops);
-    cdev_add(&work.platform_data->cdev, work.platform_data->devid, WORK_NUM);
-    printk("Failed:%s:%d work_fops succesful! \r\n", 
-                __func__, __LINE__);
+    work.cdev.owner = THIS_MODULE;
+    cdev_init(&work.cdev, &work_fops);
+    cdev_add(&work.cdev, work.devid, WORK_NUM);
+
     /* 3. 创建类 */
-    work.platform_data->class = class_create(THIS_MODULE, WORK_CLASS_NAME);    
-    if(IS_ERR(work.platform_data->class)) {
-        printk("Failed:%s:%d: %s under class created failed! \r\n", 
-                __func__, __LINE__, WORK_DEVICE_NAME);
+    work.class = class_create(THIS_MODULE, WORK_CLASS_NAME);    
+    if(IS_ERR(work.class)) {
+        PRINT_ERR("%s under class created failed! \n", WORK_DEVICE_NAME); 
+
         return ERROR;
     }
-     /* 4.创建设备 */
-    work.platform_data->device = device_create(work.platform_data->class, NULL, 
-                                    work.platform_data->devid, NULL, WORK_DEVICE_NAME);
-    if(NULL == work.platform_data->device) {
-        printk("Failed:%s:%d: %s device created failed! \r\n", 
-                __func__, __LINE__,  WORK_DEVICE_NAME);    
+    /* 4. 创建设备 */
+    work.device = device_create(work.class, NULL, 
+                                work.devid, NULL, WORK_DEVICE_NAME);
+    if(NULL == work.device) {
+        PRINT_ERR("%s device created failed! \n", WORK_DEVICE_NAME);
+           
         return ERROR;    
     }
 
     return OK;
 }
 
-#ifdef CONFIG_OF
 static struct work_platform_data  *work_parse_dt(struct device *pdev)
 {
     struct work_platform_data *pdata;
@@ -141,7 +157,6 @@ static struct work_platform_data  *work_parse_dt(struct device *pdev)
 
     return pdata;
 }
-#endif
 
 static int work_probe(struct platform_device *pdev)
 {
@@ -149,17 +164,17 @@ static int work_probe(struct platform_device *pdev)
     struct work_platform_data *pdata = pdev->dev.platform_data;
     struct work_dev *pwork = &work;
     
-    printk("%s:%d: Entry %s \r\n", __FILE__, __LINE__, __func__);
+    PRINT_INFO("Entry %s \n", __func__);
 
     if (!pdata) {
-        printk("could not allocate memory for platform data\n");
+        PRINT_ERR("could not allocate memory for platform data. \n");
         pdata = work_parse_dt(&pdev->dev);
         if(pdata) {
             pdev->dev.platform_data = pdata;
         }
     }    
     if (!pdata) {
-        printk(KERN_WARNING "get platform_data NULL\n");
+        PRINT_ERR("get platform_data NULL\n");
         ret = -EINVAL;
         goto fail_to_get_platform_data;
     }    
@@ -168,10 +183,10 @@ static int work_probe(struct platform_device *pdev)
     
     ret = register_driver();
     if(ERROR == ret ) {
-        printk("Failed:%s:%d: driver register error! \r\n", __func__, __LINE__);
+        PRINT_ERR("driver register error! \n");
         goto fail_to_get_platform_data;
     }  else {
-        printk("%s:%d: driver register successfully \r\n", __func__, __LINE__);
+        PRINT_INFO("%s:%d: driver register successfully \n", __func__, __LINE__);
     }
     
 #if !defined(DECLARE_WORK_SUPPORT)
@@ -187,10 +202,10 @@ fail_to_get_platform_data:
 
 int work_remove(struct platform_device *pdev)
 {
-    cdev_del(&work.platform_data->cdev);
-    unregister_chrdev_region(work.platform_data->devid, WORK_NUM);    
-    device_destroy(work.platform_data->class, work.platform_data->devid);
-    class_destroy(work.platform_data->class);
+    cdev_del(&work.cdev);
+    unregister_chrdev_region(work.devid, WORK_NUM);    
+    device_destroy(work.class, work.devid);
+    class_destroy(work.class);
 
     return 0;
 }
@@ -216,7 +231,7 @@ static struct platform_driver work_device_driver = {
 
 static int __init work_init(void)
 {
-    printk("%s:%d: Entry %s \r\n", __FILE__, __LINE__, __func__);
+    PRINT_INFO("Entry %s \n", __func__);
 
     platform_driver_register(&work_device_driver);
     
@@ -225,7 +240,7 @@ static int __init work_init(void)
 
 static void __exit work_exit(void)
 {
-    printk("%s:%d: Entry %s \r\n", __FILE__, __LINE__, __func__);
+    PRINT_INFO("Entry %s \n", __func__);
 
     platform_driver_unregister(&work_device_driver);
 }
