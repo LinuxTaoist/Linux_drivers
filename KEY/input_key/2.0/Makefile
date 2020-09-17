@@ -11,7 +11,6 @@
 KERN_DIR := $(imx6ull_kernel)
 all:
 	make -C $(KERN_DIR) M=`pwd` modules 
-	#$(CROSS_COMPILE)gcc -o input_key input_key.c  
 
 clean:
 	make -C $(KERN_DIR) M=`pwd` modules clean

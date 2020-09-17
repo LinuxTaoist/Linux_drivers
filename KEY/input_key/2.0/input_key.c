@@ -38,7 +38,7 @@
 
 #define INPUT_KEY_NAME   "input_key"
 #define PLATFORM_NAME    "platform_input_key"
-#define COMPATABLE_NAME  "100ask,test"
+#define COMPATABLE_NAME  "100ask,input_key"
 
 #define DEBUG_LOG_SUPPORT
 
@@ -76,15 +76,22 @@ struct input_key_dev input_key;
 
 static irqreturn_t gpio_key_handler(int irq, void *dev_id)
 {
-    int key_val = -1;
+    int key_val = -1, gpio_value = -1;
     struct input_key_dev *dev = (struct input_key_dev *)dev_id;
     PRINT_INFO("Enter %s \n", __func__);
     disable_irq_nosync(irq);
     
     key_val = dev->platform_data->value;
-    input_report_key(dev->inputdev, dev->platform_data->value, 0);
-    input_sync(dev->inputdev);
-   
+    gpio_value = gpio_get_value(dev->platform_data->gpionum); 
+    PRINT_DEBUG("gpio_value: %d \n", gpio_value);
+    if(gpio_value) {
+        input_report_key(dev->inputdev, dev->platform_data->value, 0);
+        input_sync(dev->inputdev);
+    } else {
+        input_report_key(dev->inputdev, dev->platform_data->value, 1);
+        input_sync(dev->inputdev);
+    }
+
     enable_irq(irq);
     return IRQ_RETVAL(IRQ_HANDLED); 
 }
