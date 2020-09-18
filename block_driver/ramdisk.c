@@ -127,6 +127,7 @@ static int __init ramdisk_init(void)
     ramdisk.block_buf = kzalloc(RAMDISK_SIZE, GFP_KERNEL);
     if (ramdisk.block_buf == NULL) {
         ret = -ENOMEM;
+
         goto err; 
     }
 
@@ -134,6 +135,7 @@ static int __init ramdisk_init(void)
     if (ramdisk.major < 0) {
         PRINT_ERR("Get major error! \n");
         ret = -ENODEV;
+
         goto major_err;    
     }
     PRINT_INFO("ramdisk.major: %d \n", ramdisk.major);
@@ -142,6 +144,7 @@ static int __init ramdisk_init(void)
     if (!ramdisk.gendisk) {
         PRINT_ERR("Get disk error! \n");
         ret = -EDEADLK;
+
         goto disk_err;    
     }
 
@@ -149,6 +152,8 @@ static int __init ramdisk_init(void)
     ramdisk.queue = blk_init_queue(ramdisk_request, &ramdisk.lock);
     if (!ramdisk.queue) {
         PRINT_ERR("Get queue error! \n");
+        ret = -ENOENT;
+
         goto queue_err;    
     }
 
